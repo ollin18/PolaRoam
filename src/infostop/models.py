@@ -143,7 +143,14 @@ class Infostop(BaseStopModel):
         labels_and_coords = labels_and_coords.with_columns(pl.col("event_maps").arr.get(0).alias("latitude"),
                         pl.col("event_maps").arr.get(1).alias("longitude"))
         
-        self._median_coords = labels_and_coords.group_by(["uid", "stop_events"], maintain_order=True).agg(pl.col("latitude").median(), pl.col("longitude").median())
+        self._median_coords = (labels_and_coords
+                               .group_by(["uid", "stop_events"], maintain_order=True)
+                               .agg(pl.col("latitude").median()
+                                    , pl.col("longitude").median()
+                                    , pl.col("timestamp").min().alias("start_timestamp")
+                                    , pl.col("timestamp").max().alias("end_timestamp")
+                                )
+                            )
         return self._median_coords
     
     def compute_infomap(self):

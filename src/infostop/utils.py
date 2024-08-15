@@ -256,8 +256,8 @@ def get_stationary_events(input_df, r_C, min_size, min_staying_time, max_staying
     out = coords.select(
         pl.col("uid"),
         pl.col("event_id").cast(pl.Int64).alias("stop_events"),
-        pl.col("stat_coords")
-        .alias("event_maps"),
+        pl.col("stat_coords").alias("event_maps"),
+        pl.col('timestamp')
     )
 
     return out
