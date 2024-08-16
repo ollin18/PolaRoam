@@ -58,31 +58,31 @@ class BaseStopModel:
         return labels
     
     def _downsample(self, df, min_spacial_resolution):
-        coords = df.with_columns([
+        if min_spacial_resolution > 0:
+            coords_df = (
+                df.with_columns(
+                    ((pl.col("latitude") / min_spacial_resolution).round() * min_spacial_resolution),
+                    ((pl.col("longitude") / min_spacial_resolution).round() * min_spacial_resolution)
+                ).with_columns(
+                    pl.concat_list(["latitude", "longitude"]).alias("coords")
+                )
+            )
+        else:
+            coords_df = df.with_columns([
             pl.concat_list(["latitude", "longitude"]).alias('coords')
         ])
-        if min_spacial_resolution > 0:
-            # Extract the coords column as a Polars Series and convert it to a NumPy array
-            coords_vals = coords['coords'].to_numpy()
-            # coords_vals = np.around(coords_vals / min_spacial_resolution) * min_spacial_resolution
-            coords_vals = np.array([np.around(coord / min_spacial_resolution) * min_spacial_resolution for coord in coords_vals])
-            # Convert the NumPy array back to a Polars DataFrame or Series
-            coords_df = coords.with_columns([pl.Series('coords', coords_vals)])
-            coords_df = (coords_df.with_columns(pl.col('coords').arr.get(0).alias("latitude")
-                                            , pl.col('coords').arr.get(1).alias("longitude")
-                                            )
-                                        )
-        else:
-            coords_df = coords
         
         coords_df = coords_df.with_row_index("index")
         
         unique_coords_df = (coords_df.group_by(["uid", "latitude", "longitude"], maintain_order=True)
                             .agg(pl.col('index')
-                                 , pl.len().alias("count")
-                                 , pl.col('coords').first()
-                                 )
+                                , pl.len().alias("count")
+                                , pl.col('coords').first()
+                                , pl.col('start_timestamp')
+                                , pl.col('end_timestamp')
                                 )
+                            )
+        
         return unique_coords_df
 
 class Infostop(BaseStopModel):
@@ -104,8 +104,16 @@ class Infostop(BaseStopModel):
 
     def fit_predict(self, data):
         progress = tqdm if self._verbose else utils.pass_func
-
-        self.multiuser = 'uid' in data.columns and data['uid'].n_unique() > 1
+        
+        # Check if 'uid' is in the column names
+        column_names = data.collect_schema().names()
+        if 'uid' in column_names:
+            # Select the unique count of 'uid'
+            unique_uid_count = data.select(pl.col("uid").n_unique().alias("unique_uid_count")).collect()
+            # Extract the value and perform the comparison
+            self.multiuser = unique_uid_count["unique_uid_count"][0] > 1
+        else:
+            self.multiuser = False
 
         if self.multiuser:
             # Group the data by 'uid' for multiuser set
@@ -113,8 +121,14 @@ class Infostop(BaseStopModel):
         else:
             # Treat as single user data
             grouped_data = data.with_columns(pl.lit("single_user").alias("uid")).group_by("uid", maintain_order=True)
-        self._data_assertions(data)
-
+        # self._data_assertions(data)
+        # Define the schema for the output DataFrame
+        output_schema = {
+            "uid": pl.String,
+            "stop_events": pl.Int64,
+            "event_maps": pl.Array(pl.Float64, shape=(2,)),
+            "timestamp": pl.Int64,
+        }
         # Use apply to handle the stationary events per group in parallel
         results = grouped_data.map_groups(
             lambda df: pl.DataFrame(
@@ -127,9 +141,11 @@ class Infostop(BaseStopModel):
                     self._distance_metric
                 )
             )
+            , schema = output_schema
         )
 
-        if ((results.filter(pl.col('stop_events') == -1).shape[0]) == results.shape[0]):
+        # if ((results.filter(pl.col('stop_events') == -1).shape[0]) == results.shape[0]):
+        if ((results.filter(pl.col('stop_events') == -1).select(pl.len()).collect().item()) == results.select(pl.len()).collect().item()):
             raise NoStopsFoundException("No stop events found. Check parameters.")
         
         self._results = results
@@ -177,6 +193,39 @@ class Infostop(BaseStopModel):
 
         stop_labels = self._median_coords.with_columns((pl.Series(name="stop_labels", values=labels_df['labels'])) )
         self._stop_labels = stop_labels
+
+        return self._stop_labels
+    
+    def compute_dbscan(self):
+        self._stat_coords = self._downsample(self._median_coords, self._min_spacial_resolution)
+        
+        output_schema = {"uid":pl.String
+                         ,"inverse_indices":pl.List(pl.UInt32)
+                         ,"latitude":pl.Float64
+                         ,"longitude":pl.Float64
+                         ,"start_timestamp":pl.Int64
+                         ,"end_timestamp":pl.Int64
+                         ,"stop_locations":pl.Int64
+                         }
+        self._stat_labels = (self._stat_coords
+                                .group_by("uid", maintain_order=True)
+                                .map_groups(lambda df: pl.DataFrame(
+                                    {"uid":df.select(pl.col('uid'))
+                                    ,"inverse_indices":df.select(pl.col("index"))
+                                    ,"latitude":df.select(pl.col('latitude'))
+                                    ,"longitude":df.select(pl.col('longitude'))
+                                    ,"start_timestamp":df.select(pl.col("start_timestamp"))
+                                    ,"end_timestamp":df.select(pl.col('end_timestamp'))
+                                    ,"stop_locations":utils.cluster_dbscan(df
+                                                        , self._r2
+                                                        , self._distance_metric
+                                                        , self._num_threads)
+                                                    })
+                                                , schema = output_schema
+                                            )
+                                        )
+        self._stop_labels = self._stat_labels.explode(["inverse_indices","start_timestamp","end_timestamp"]).sort("inverse_indices")
+
 
         return self._stop_labels
 
