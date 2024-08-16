@@ -3,7 +3,10 @@ import bisect
 import polars as pl
 from sklearn.neighbors import BallTree
 from scipy.spatial import ConvexHull, QhullError
+\
 from infomap import Infomap
+from sklearn.cluster import DBSCAN
+
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
 
@@ -189,6 +192,28 @@ def haversine(lat1, lon1, lat2, lon2):
     distance = R * c
 
     return distance
+
+##################################################################
+##################################################################
+##################################################################
+##################################################################
+##################################################################
+##################################################################
+
+def cluster_dbscan(coords, r2, distance_metric="haversine", num_threads=1):
+    # Extract the coordinates from the Polars DataFrame
+    coords_list = np.array(coords.select("coords").to_numpy().tolist()).reshape(-1, 2)
+
+    # Convert to radians if using haversine distance
+    if distance_metric == "haversine":
+        coords_list = np.radians(coords_list)
+        r2 = r2 / 6371000  # Earth radius in meters
+    # Apply DBSCAN
+    db = DBSCAN(eps=r2, min_samples=2, metric=distance_metric, n_jobs=num_threads).fit(coords_list)
+    labels = db.labels_
+
+    return labels
+
 
 def get_stationary_events(input_df, r_C, min_size, min_staying_time, max_staying_time, distance_metric):
     coords = input_df.select(['uid', 'latitude', 'longitude', 'timestamp'])
