@@ -105,6 +105,74 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
     # Wait for all futures to complete
     concurrent.futures.wait(futures)
 
+#########################################################
+#########################################################
+#########################################################
+#########################################################
+########## Non concurrent
+#########################################################
+#########################################################
+#########################################################
+#########################################################
+
+# By dates
+# %%
+
+for date_str in filtered_dates:
+    print(f"Processing date: {date_str}")
+
+    # Load all parquet files for the specific date
+    df = pl.scan_parquet(os.path.join(home_directory,input_directory, f"day={date_str}/*.parquet"))
+
+    # Select only necessary columns
+    df = df.select(columns_to_read)
+
+    # Rename columns and process timestamps
+    df = df.rename({"_c0":"uid", "_c2":"latitude", "_c3":"longitude", "_c5":"timestamp"})
+    df = df.with_columns(pl.col("timestamp").cast(pl.Int64))
+    df = df.sort("timestamp")
+    df = (df.with_columns(
+           date = pl.from_epoch("timestamp", time_unit="s")
+           )
+          .with_columns(
+          pl.col("date").dt.replace_time_zone("UTC")
+          .dt.replace_time_zone("America/Mexico_City")
+          )
+          .with_columns(
+          pl.col("date").dt.epoch(time_unit="s").alias("timestamp")
+          )
+        )
+
+    # Initialize your Infostop model
+    model = models.Infostop(
+        r1=10,
+        r2=10,
+        min_staying_time=300,
+        max_time_between=3600,
+        min_size=2,
+        distance_metric="haversine",
+        verbose=False,
+        num_threads=20,
+        min_spacial_resolution=0
+    )
+
+    # Fit the model and compute stops
+    start = time.time()
+    labels = model.fit_predict(df)
+    medians = model.compute_label_medians()
+    stop_locations = model.compute_dbscan()
+
+    # Prepare output file path
+    output_file = os.path.join(home_directory, output_directory, f"{date_str}_all_stops.parquet")
+
+    # Save the processed stop locations
+    pl.Config.set_streaming_chunk_size(10000)
+    stop_locations.collect(streaming=True).write_parquet(output_file, use_pyarrow=True)
+
+    end = time.time()
+    print(f"Processed {date_str} in {end - start} seconds")
+
+
 # ##########################
 # #### Example with quadrant
 # # %%
