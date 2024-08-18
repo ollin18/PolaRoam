@@ -215,7 +215,7 @@ def cluster_dbscan(coords, r2, distance_metric="haversine", num_threads=1):
     return labels
 
 
-def get_stationary_events(input_df, r_C, min_size, min_staying_time, max_staying_time, distance_metric):
+def _get_stationary_events_(input_df, r_C, min_size, min_staying_time, max_staying_time, distance_metric):
     coords = input_df.select(['uid', 'latitude', 'longitude', 'timestamp'])
 
     if coords.is_empty():
@@ -277,6 +277,123 @@ def get_stationary_events(input_df, r_C, min_size, min_staying_time, max_staying
     ])
 
     coords = coords.with_columns(stat_coords=np.array(coords.select(['latitude', 'longitude']).cast(pl.Float64)))
+
+    out = coords.select(
+        pl.col("uid"),
+        pl.col("event_id").cast(pl.Int64).alias("stop_events"),
+        pl.col("stat_coords").alias("event_maps"),
+        pl.col('timestamp')
+    )
+
+    return out
+
+def haversine_polars(lat1, lon1):
+    # Convert latitude and longitude from degrees to radians
+    lat1_rad = pl.col(lat1).radians()
+    lon1_rad = pl.col(lon1).radians()
+    lat2_rad = pl.col(lat1).shift(-1).radians()
+    lon2_rad = pl.col(lon1).shift(-1).radians()
+
+    # Haversine formula
+    dlat = lat2_rad - lat1_rad
+    dlon = lon2_rad - lon1_rad
+
+    a = (
+            ((dlat / 2).sin()).pow(2) +
+            lat1_rad.cos() * lat2_rad.cos() * ((dlon / 2).sin()).pow(2)
+
+         )
+
+    c = 2 * a.sqrt().arcsin()
+
+    # Radius of Earth in meters
+    R = 6371000
+    distance = R * c
+
+    return distance
+
+def euclidean_polars(lat1, lon1):
+    lat1_col = pl.col(lat1)
+    lon1_col = pl.col(lon1)
+    lat2_col = pl.col(lat1).shift(-1)
+    lon2_col = pl.col(lon1).shift(-1)
+
+    # Haversine formula
+    dlat = lat2_col - lat1_col
+    dlon = lon2_col - lon1_col
+
+    distance = (
+            (dlat.pow(2) + dlon.pow(2)).sqrt()
+         )
+
+    return distance
+
+# Example usage with Polars DataFrame
+def calculate_distances(coords, distance_metric):
+    dict_dist = {"haversine" : haversine_polars
+                 ,"euclidean" : euclidean_polars
+                 }
+    if distance_metric in dict_dist:
+        coords = coords.with_columns([
+            dict_dist[distance_metric](
+                'latitude', 'longitude'
+            ).alias('distance'),
+            (pl.col('timestamp').shift(-1) - pl.col('timestamp')).alias('time_diff')
+        ])
+    else:
+        raise ValueError("Unsupported distance metric")
+
+    return coords
+
+
+
+def get_stationary_events(input_df, r_C, min_size, min_staying_time, max_staying_time, distance_metric):
+    coords = input_df.select(['uid', 'latitude', 'longitude', 'timestamp'])
+
+    coords = calculate_distances(coords, distance_metric)
+
+    coords = coords.with_columns([
+        (pl.col('distance') <= r_C).alias('within_radius'),
+        (pl.col('time_diff').is_null() | (pl.col('time_diff') <= max_staying_time)).alias('within_time')
+    ])
+
+    # Find clusters of points that meet the stationary criteria
+    coords = coords.with_columns([
+    (pl.col('within_radius') & pl.col('within_time')).alias('stationary')
+    ])
+
+    coords = coords.with_columns([
+        (pl.col('stationary') & (~pl.col('stationary').shift(1, fill_value=False))).cast(pl.Int32).alias('event_change')
+    ])
+
+    # Create event IDs by cumulatively summing up the transitions
+    coords = coords.with_columns([
+        (pl.col('event_change').cum_sum().alias('event_id'))
+    ])
+
+    # Filter events based on min_size and min_staying_time
+    event_stats = coords.group_by('event_id').agg([
+        pl.col('event_id').count().alias('event_size'),
+        pl.col('time_diff').sum().alias('total_time')
+    ]).filter(
+        (pl.col('event_size') >= min_size) & (pl.col('total_time') >= min_staying_time)
+    )
+
+    # Join coords with event_stats to filter valid event_ids
+    coords = coords.join(
+        event_stats.select("event_id"),
+        on="event_id",
+        how="left"
+    )
+
+    # Now replace null event_ids with -1
+    coords = coords.with_columns(
+        pl.col("event_id").fill_null(-1)
+    )
+
+    coords = coords.with_columns(
+        pl.concat_list(["latitude", "longitude"]).list.to_array(2).alias("stat_coords")
+    )
 
     out = coords.select(
         pl.col("uid"),

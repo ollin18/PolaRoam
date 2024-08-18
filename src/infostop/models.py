@@ -173,7 +173,7 @@ class Infostop(BaseStopModel):
     def compute_infomap(self):
         self._stat_coords = self._downsample(self._median_coords, self._min_spacial_resolution)
 
-        self._log(f"Downsampling to {len(self._stat_coords)} unique coordinates.")
+        # self._log(f"Downsampling to {len(self._stat_coords)} unique coordinates.")
         # self._stat_labels = self._fit_network(self._stat_coords, self._r2, self._weighted, self._weight_exponent, self._label_singleton, self._num_threads)
 
         self._stat_labels = (self._stat_coords

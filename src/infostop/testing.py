@@ -1,6 +1,6 @@
 # %%
 import os
-os.environ['POLARS_MAX_THREADS'] = '20'
+# os.environ['POLARS_MAX_THREADS'] = '20'
 import pandas as pd
 import polars as pl
 import infostop
@@ -37,7 +37,7 @@ model = models.Infostop(
     r1=10,  # Max distance to consider points as stationary
     r2=10,  # Max distance to consider stationary points as connected
     min_staying_time=300,  # Minimum time to consider a location as a stop (same unit as time in data)
-    max_time_between=86400,  # Max time between points to consider them in the same stop (same unit as time in data)
+    max_time_between=3600,  # Max time between points to consider them in the same stop (same unit as time in data)
     min_size=2,  # Minimum number of points to consider a stop
     distance_metric="haversine",  # Distance metric, 'haversine' for geo-coordinates
     verbose=False,  # Set to True for more detailed output during processing
