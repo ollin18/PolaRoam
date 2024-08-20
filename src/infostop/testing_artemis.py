@@ -22,7 +22,7 @@ import concurrent.futures
 # input_directory = "/data_1/quadrant/output_local/filter_partioned/"
 home_directory = os.path.expanduser("~")
 input_directory = "data_quadrant/filter_partioned/"
-# output_directory = "/data_1/quadrant/output_local/ollin_stops/"
+#  output_directory = "/data_1/quadrant/output_local/ollin_stops/"
 output_directory = "data_quadrant/ollin_stops/"
 columns_to_read = ["_c0", "_c2", "_c3", "_c5"]
 
@@ -34,8 +34,10 @@ files = glob.glob(os.path.join(home_directory, input_directory,"day*"), recursiv
 # unique_dates = sorted(set([os.path.basename(os.path.dirname(f)).split('=')[-1] for f in files]))
 unique_dates = sorted(set([os.path.basename(f).split('=')[-1] for f in files]))
 
-start_date = "2022-12-09"
+start_date = "2022-12-02"
+end_date = "2022-12-08"
 filtered_dates = [date for date in unique_dates if date >= start_date]
+filtered_dates = [date for date in filtered_dates if date <= end_date]
 
 # By dates
 # %%
@@ -171,6 +173,50 @@ for date_str in filtered_dates:
 
     end = time.time()
     print(f"Processed {date_str} in {end - start} seconds")
+
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+########### Re-create the clusters for all the days
+#######################################################################################################
+#######################################################################################################
+#######################################################################################################
+
+output_clusters = "data_quadrant/ollin_clusters/"
+
+df = pl.scan_parquet(os.path.join(home_directory,output_directory, "*.parquet"))
+columns_to_read = ["uid", "stop_events", "latitude", "longitude", "start_timestamp", "end_timestamp"]
+df = df.select(columns_to_read)
+#  df.collect_schema()
+#  df = df.rename({"inverse_indices":"index"})
+#  df = df.with_row_index("index")
+#  df.collect_schema()
+
+model = models.Infostop(
+    r1=10,
+    r2=10,
+    min_staying_time=300,
+    max_time_between=3600,
+    min_size=2,
+    distance_metric="haversine",
+    verbose=False,
+    num_threads=20,
+    min_spacial_resolution=0
+)
+
+start = time.time()
+model._median_coords = df
+stop_locations = model.compute_dbscan()
+
+# Prepare output file path
+output_file = os.path.join(home_directory, output_clusters, "all_days_clusters.parquet")
+
+# Save the processed stop locations
+pl.Config.set_streaming_chunk_size(10000)
+stop_locations.collect(streaming=True).write_parquet(output_file, use_pyarrow=True)
+
+end = time.time()
+print(f"Processed the clustering in {end - start} seconds")
 
 
 # ##########################
