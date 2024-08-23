@@ -89,7 +89,10 @@ class BaseStopModel:
 class Infostop(BaseStopModel):
     """Infostop model class, extending BaseStopModel."""
 
-    def __init__(self, r1=10, r2=10, label_singleton=False, min_staying_time=300, max_time_between=86400, min_size=2, min_spacial_resolution=0, distance_metric="haversine", weighted=False, weight_exponent=1, verbose=False, coords_column='event_maps', num_threads=1):
+    def __init__(self, r1=10, r2=10, label_singleton=False,
+                 min_staying_time=300, max_time_between=86400, min_size=2,
+                 min_spacial_resolution=0, distance_metric="haversine",
+                 nn_algorithm="ball_tree", weighted=False, weight_exponent=1, verbose=False, coords_column='event_maps', num_threads=1):
         super().__init__(distance_metric, verbose)
         self._r1 = r1
         self._r2 = r2
@@ -98,6 +101,8 @@ class Infostop(BaseStopModel):
         self._max_time_between = max_time_between
         self._min_size = min_size
         self._min_spacial_resolution = min_spacial_resolution
+        self._distance_metric = distance_metric
+        self._nn_algorithm = nn_algorithm
         self._coords_column = coords_column
         self._weighted = weighted
         self._weight_exponent = weight_exponent
@@ -133,7 +138,7 @@ class Infostop(BaseStopModel):
         # Use apply to handle the stationary events per group in parallel
         results = grouped_data.map_groups(
             lambda df: pl.DataFrame(
-                utils.get_stationary_events(
+                utils._get_stationary_events(
                     df.select(['uid', 'latitude', 'longitude', 'timestamp']),
                     self._r1,
                     self._min_size,
@@ -222,6 +227,7 @@ class Infostop(BaseStopModel):
                                     ,"stop_locations":utils.cluster_dbscan(df
                                                         , self._r2
                                                         , self._distance_metric
+                                                        , self._nn_algorithm
                                                         , self._num_threads)
                                                     })
                                                 , schema = output_schema

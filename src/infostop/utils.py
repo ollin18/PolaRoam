@@ -6,6 +6,7 @@ from scipy.spatial import ConvexHull, QhullError
 \
 from infomap import Infomap
 from sklearn.cluster import DBSCAN
+from sklearn.cluster import HDBSCAN
 
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
@@ -200,7 +201,7 @@ def haversine(lat1, lon1, lat2, lon2):
 ##################################################################
 ##################################################################
 
-def cluster_dbscan(coords, r2, distance_metric="haversine", num_threads=1):
+def cluster_dbscan(coords, r2, distance_metric="haversine", nn_algorithm="ball_tree", num_threads=1):
     # Extract the coordinates from the Polars DataFrame
     coords_list = np.array(coords.select("coords").to_numpy().tolist()).reshape(-1, 2)
 
@@ -209,83 +210,50 @@ def cluster_dbscan(coords, r2, distance_metric="haversine", num_threads=1):
         coords_list = np.radians(coords_list)
         r2 = r2 / 6371000  # Earth radius in meters
     # Apply DBSCAN
-    db = DBSCAN(eps=r2, min_samples=2, metric=distance_metric, n_jobs=num_threads).fit(coords_list)
+    #  db = DBSCAN(eps=r2, min_samples=2, metric=distance_metric, algorithm=nn_algorithm, n_jobs=num_threads).fit(coords_list)
+    if len(coords_list) > 1:
+        db = HDBSCAN(min_cluster_size=2, cluster_selection_epsilon=r2, metric=distance_metric, algorithm=nn_algorithm, n_jobs=num_threads).fit(coords_list)
+        labels = db.labels_
+    else:
+        labels = [-1]
+
+    return labels
+
+def cluster_dbscan_polars(coords, r2, distance_metric="haversine", nn_algorithm="ball_tree", num_threads=1):
+    # Extract the coordinates from the Polars DataFrame
+    coords_list = np.array(coords.select("coords").to_numpy().tolist()).reshape(-1, 2)
+
+    # Convert to radians if using haversine distance
+    if distance_metric == "haversine":
+        coords_list = np.radians(coords_list)
+        r2 = r2 / 6371000  # Earth radius in meters
+    # Apply DBSCAN
+    db = DBSCAN(eps=r2, min_samples=2, metric=distance_metric, algorithm=nn_algorithm, n_jobs=num_threads).fit(coords_list)
     labels = db.labels_
 
     return labels
 
+def haversine_pair_polars(coords):
+    lat1_rad = lat1.radians()
+    lon1_rad = lon1.radians()
+    lat2_rad = lat2.radians()
+    lon2_rad = lon2.radians()
 
-def _get_stationary_events_(input_df, r_C, min_size, min_staying_time, max_staying_time, distance_metric):
-    coords = input_df.select(['uid', 'latitude', 'longitude', 'timestamp'])
+    dlat = lat2_rad - lat1_rad
+    dlon = lon2_rad - lon1_rad
 
-    if coords.is_empty():
-        return [], []
+    a = (
+            ((dlat / 2).sin()).pow(2) +
+            lat1_rad.cos() * lat2_rad.cos() * ((dlon / 2).sin()).pow(2)
 
-    # Determine distance function
-    if distance_metric == "haversine":
-        distance_function = haversine
-    elif distance_metric == "euclidean":
-        distance_function = lambda lat1, lon1, lat2, lon2: np.sqrt((lat2 - lat1) ** 2 + (lon2 - lon1) ** 2)
-    else:
-        raise ValueError("Unsupported distance metric")
+         )
 
-    # Calculate distances between consecutive points
-    coords = coords.with_columns([
-        distance_function(
-            pl.col('latitude').shift(-1), pl.col('longitude').shift(-1),
-            pl.col('latitude'), pl.col('longitude')
-        ).alias('distance'),
-        (pl.col('timestamp').shift(-1) - pl.col('timestamp')).alias('time_diff')
-    ])
+    c = 2 * a.sqrt().arcsin()
 
-    # Create a mask for stationary events based on thresholds
-    coords = coords.with_columns([
-        (pl.col('distance') <= r_C).alias('within_radius'),
-        (pl.col('time_diff').is_null() | (pl.col('time_diff') <= max_staying_time)).alias('within_time')
-    ])
+    # Radius of Earth in meters
+    R = 6371000
+    distance = R * c
 
-    # Find clusters of points that meet the stationary criteria
-    coords = coords.with_columns([
-    (pl.col('within_radius') & pl.col('within_time')).alias('stationary')
-])
-
-    coords = coords.with_columns([
-        (pl.col('stationary') & (~pl.col('stationary').shift(1, fill_value=False))).cast(pl.Int32).alias('event_change')
-    ])
-
-    # Create event IDs by cumulatively summing up the transitions
-    coords = coords.with_columns([
-        (pl.col('event_change').cum_sum().alias('event_id'))
-    ])
-
-    # Filter events based on min_size and min_staying_time
-    event_stats = coords.group_by('event_id').agg([
-        pl.col('event_id').count().alias('event_size'),
-        pl.col('time_diff').sum().alias('total_time')
-    ]).filter(
-        (pl.col('event_size') >= min_size) & (pl.col('total_time') >= min_staying_time)
-    )
-
-    # Keep only valid events
-    valid_event_ids = event_stats['event_id'].to_list()
-
-    coords = coords.with_columns([
-        pl.when(pl.col('event_id').is_in(valid_event_ids))
-        .then(pl.col('event_id'))
-        .otherwise(-1)
-        .alias('event_id')
-    ])
-
-    coords = coords.with_columns(stat_coords=np.array(coords.select(['latitude', 'longitude']).cast(pl.Float64)))
-
-    out = coords.select(
-        pl.col("uid"),
-        pl.col("event_id").cast(pl.Int64).alias("stop_events"),
-        pl.col("stat_coords").alias("event_maps"),
-        pl.col('timestamp')
-    )
-
-    return out
 
 def haversine_polars(lat1, lon1):
     # Convert latitude and longitude from degrees to radians
@@ -347,7 +315,7 @@ def calculate_distances(coords, distance_metric):
 
 
 
-def get_stationary_events(input_df, r_C, min_size, min_staying_time, max_staying_time, distance_metric):
+def _get_stationary_events(input_df, r_C, min_size, min_staying_time, max_staying_time, distance_metric):
     coords = input_df.select(['uid', 'latitude', 'longitude', 'timestamp'])
 
     coords = calculate_distances(coords, distance_metric)

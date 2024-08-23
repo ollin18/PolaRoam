@@ -41,27 +41,12 @@ model = models.Infostop(
     max_time_between=3600,  # Max time between points to consider them in the same stop (same unit as time in data)
     min_size=2,  # Minimum number of points to consider a stop
     distance_metric="haversine",  # Distance metric, 'haversine' for geo-coordinates
+    nn_algorithm="auto",  # Distance metric, 'haversine' for geo-coordinates
     verbose=False,  # Set to True for more detailed output during processing
     num_threads = 30,
     min_spacial_resolution=0
 )
 
-# Use fit_predict to process the data and get stop location labels
-#  labels = model.fit_predict(example_data)
-# %%
-#  labels = model.fit_predict(df)
-
-# %%
-#  medians = model.compute_label_medians()
-
-# %%
-# stop_locations = model.compute_infomap()
-#  stop_locations = model.compute_dbscan()
-
-# %%
-#  stop_locations = stop_locations.collect()
-
-# %%
 start = time.time()
 labels = model.fit_predict(df)
 medians = model.compute_label_medians()
@@ -71,42 +56,130 @@ end = time.time()
 print(end - start)
 
 stop_locations.schema
-#  org = pd.read_parquet("../../data/veraset_movement_416.snappy.parquet")
+
+# %%
+model = models.Infostop(
+    r1=10,  # Max distance to consider points as stationary
+    r2=10,  # Max distance to consider stationary points as connected
+    min_staying_time=300,  # Minimum time to consider a location as a stop (same unit as time in data)
+    max_time_between=3600,  # Max time between points to consider them in the same stop (same unit as time in data)
+    min_size=2,  # Minimum number of points to consider a stop
+    distance_metric="haversine",  # Distance metric, 'haversine' for geo-coordinates
+    nn_algorithm="ball_tree",  # Distance metric, 'haversine' for geo-coordinates
+    verbose=False,  # Set to True for more detailed output during processing
+    num_threads = 30,
+    min_spacial_resolution=0
+)
+
+start = time.time()
+labels = model.fit_predict(df)
+medians = model.compute_label_medians()
+stop_locations = model.compute_dbscan()
+stop_locations = stop_locations.collect()
+end = time.time()
+print(end - start)
+
+stop_locations.schema
+
+# %%
+model = models.Infostop(
+    r1=5,  # Max distance to consider points as stationary
+    r2=5,  # Max distance to consider stationary points as connected
+    min_staying_time=300,  # Minimum time to consider a location as a stop (same unit as time in data)
+    max_time_between=3600,  # Max time between points to consider them in the same stop (same unit as time in data)
+    min_size=2,  # Minimum number of points to consider a stop
+    distance_metric="haversine",  # Distance metric, 'haversine' for geo-coordinates
+    nn_algorithm="auto",  # Distance metric, 'haversine' for geo-coordinates
+    verbose=False,  # Set to True for more detailed output during processing
+    num_threads = 30,
+    min_spacial_resolution=0
+)
+
+start = time.time()
+labels = model.fit_predict(df)
+medians = model.compute_label_medians()
+stop_locations = model.compute_dbscan()
+stop_locations = stop_locations.collect()
+end = time.time()
+print(end - start)
+
+stop_locations.schema
+
+
+# %%
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+org = pd.read_parquet("../../data/veraset_movement_416.snappy.parquet")
 mx = org.loc[org.country == "MX"]
 
-#  import geopandas as gpd
-#  mapa = gpd.read_file("~/Dropbox/enlace_hacia_documentos/Berkeley/informalidad/data/inegi/mgccpv/shp/m/conjunto_de_datos/09m.shp")
-#  from shapely.geometry import MultiPolygon
-#  combined_geometry = mapa.unary_union
-#  if isinstance(combined_geometry, MultiPolygon):
-#      periphery = [polygon.exterior for polygon in combined_geometry.geoms]
-#  else:
-#      periphery = [combined_geometry.exterior]
-#  periphery_gdf = gpd.GeoDataFrame(geometry=periphery)
-#  periphery_gdf = gpd.read_file("~/Downloads/Entidades_Federativas.shp")
-#  periphery_gdf = periphery_gdf.loc[periphery_gdf["CVE_ENT"] == "09"]
-#  periphery_gdf = periphery_gdf.to_crs("EPSG:4326")
-#
-#  points_gdf = gpd.GeoDataFrame(
-#      mx,
-#      geometry=gpd.points_from_xy(mx.longitude, mx.latitude),
-#      crs=periphery_gdf.crs  # Ensure CRS is the same
-#  )
+import geopandas as gpd
+mapa = gpd.read_file("~/Dropbox/enlace_hacia_documentos/Berkeley/informalidad/data/inegi/mgccpv/shp/m/conjunto_de_datos/09m.shp")
+from shapely.geometry import MultiPolygon
+combined_geometry = mapa.unary_union
+if isinstance(combined_geometry, MultiPolygon):
+    periphery = [polygon.exterior for polygon in combined_geometry.geoms]
+else:
+    periphery = [combined_geometry.exterior]
+periphery_gdf = gpd.GeoDataFrame(geometry=periphery)
+periphery_gdf = gpd.read_file("~/Downloads/Entidades_Federativas.shp")
+periphery_gdf = periphery_gdf.loc[periphery_gdf["CVE_ENT"] == "09"]
+periphery_gdf = periphery_gdf.to_crs("EPSG:4326")
+
+points_gdf = gpd.GeoDataFrame(
+    mx,
+    geometry=gpd.points_from_xy(mx.longitude, mx.latitude),
+    crs=periphery_gdf.crs  # Ensure CRS is the same
+)
 #  points_within_periphery = gpd.sjoin(points_gdf, periphery_gdf, how="inner", predicate='within')
 
 #  filtered_df = pd.DataFrame(points_within_periphery.drop(columns='geometry'))
 
 user = (
-        filtered_df
+        #  filtered_df
+        points_gdf
         .groupby("uid")
         .count()
         .sort_values("datetime"
                      ,ascending=False)
         .reset_index()
-        .iloc[15,0])
+        .iloc[1,0])
 
 # %%
-u1 = stop_locations.filter(pl.col("uid") == stop_locations["uid"][0])
+#  u1 = stop_locations.filter(pl.col("uid") == stop_locations["uid"][0])
 
 u1 = stop_locations.filter(pl.col("uid") == user)
 
@@ -121,7 +194,7 @@ u1 = u1.group_by("stop_locations").map_groups(lambda df: df.with_row_index("heig
 
 import pathlib
 #  path: pathlib.Path = "~/Downloads/median_stops_u1_labels.csv"
-path: pathlib.Path = "~/Downloads/median_stops_mx_labels.csv"
+path: pathlib.Path = "~/Downloads/median_stops_mx_labels_hdbscan.csv"
 u1.write_csv(path, separator=",")
 # path: pathlib.Path = "~/Downloads/median_stops_all_labels.csv"
 # stop_locations.write_csv(path, separator=",")
@@ -132,10 +205,10 @@ u1.write_csv(path, separator=",")
 # df = pl.scan_parquet("~/data_quadrant/filter_partioned/day=2022-12-04/*.parquet")
 # %%
 columns_to_read = ["_c0", "_c2", "_c3", "_c5"]
-# df = pl.scan_parquet("~/data_quadrant/filter_partioned/day=2022-12-04/*.parquet")
-df = pl.scan_parquet("~/data_quadrant/filter_partioned/**/*.parquet")
+df = pl.scan_parquet("~/data_quadrant/filter_partioned/day=2022-11-30/*.parquet")
+#  df = pl.scan_parquet("~/data_quadrant/filter_partioned/**/*.parquet")
 
-df =df.select(columns_to_read)
+df = df.select(columns_to_read)
 
 # %%
 df = df.rename({"_c0":"uid", "_c2":"latitude", "_c3":"longitude", "_c5":"timestamp"})
@@ -162,6 +235,7 @@ model = models.Infostop(
     max_time_between=3600,  # Max time between points to consider them in the same stop (same unit as time in data)
     min_size=2,  # Minimum number of points to consider a stop
     distance_metric="haversine",  # Distance metric, 'haversine' for geo-coordinates
+    nn_algorithm="auto",  # Distance metric, 'haversine' for geo-coordinates
     verbose=False,  # Set to True for more detailed output during processing
     num_threads = 20,
     min_spacial_resolution=0
@@ -173,11 +247,10 @@ start = time.time()
 labels = model.fit_predict(df)
 medians = model.compute_label_medians()
 stop_locations = model.compute_dbscan()
-pl.Config.set_streaming_chunk_size(10000)
-stop_locations.collect(streaming=True).write_parquet("~/data_quadrant/ollin_stops/stops_whole_period.parquet", use_pyarrow=True)
+#  pl.Config.set_streaming_chunk_size(10000)
+#  stop_locations.collect()#.collect(streaming=True).write_parquet("~/data_quadrant/ollin_stops/stops_whole_period.parquet", use_pyarrow=True)
 end = time.time()
 print(end - start)
-
 
 
 
