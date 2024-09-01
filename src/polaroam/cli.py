@@ -1,5 +1,5 @@
-"""Console script for infostop."""
-import infostop
+"""Console script for polaroam."""
+import polaroam
 
 import typer
 from rich.console import Console
@@ -10,9 +10,9 @@ console = Console()
 
 @app.command()
 def main():
-    """Console script for infostop."""
+    """Console script for polaroam."""
     console.print("Replace this message by putting your code into "
-               "infostop.cli.main")
+               "polaroam.cli.main")
     console.print("See Typer documentation at https://typer.tiangolo.com/")
 
 

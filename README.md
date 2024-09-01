@@ -1,17 +1,22 @@
 ---
-title: Infostop
+title: Polaroam
 ---
+# PolaRoam
+![PolaRoam Logo](static/PolaRoam-logo.png)
 
-[![image](https://img.shields.io/pypi/v/infostop.svg)](https://pypi.python.org/pypi/infostop)
+PolaRoam is a Python package designed to parse mobility trajectories using Polars data frames. This playful and adventurous package is inspired by the wandering nature of polar bears, offering efficient and robust tools for analyzing movement data.
 
-[![image](https://img.shields.io/travis/ollin18/infostop.svg)](https://travis-ci.com/ollin18/infostop)
 
-[![Documentation Status](https://readthedocs.org/projects/infostop/badge/?version=latest)](https://infostop.readthedocs.io/en/latest/?version=latest)
+[![image](https://img.shields.io/pypi/v/polaroam.svg)](https://pypi.python.org/pypi/polaroam)
 
-Polars port of the infostop algorithm
+[![image](https://img.shields.io/travis/ollin18/polaroam.svg)](https://travis-ci.com/ollin18/polaroam)
+
+[![Documentation Status](https://readthedocs.org/projects/polaroam/badge/?version=latest)](https://polaroam.readthedocs.io/en/latest/?version=latest)
+
+Polars port of the polaroam algorithm
 
 -   Free software: MIT license
--   Documentation: <https://infostop.readthedocs.io>.
+-   Documentation: <https://polaroam.readthedocs.io>.
 
 Features
 ========
