@@ -6,6 +6,12 @@
 
 PolaRoam is a Python package designed to parse mobility trajectories using Polars data frames. This playful and adventurous package is inspired by the wandering nature of polar bears, offering efficient and robust tools for analyzing movement data.
 
+Let me know which logo do you like better:
+
+<div align="center">
+  <img src="static/PolaRoam-logo2.svg" alt="PolaRoam" height="350px">
+</div>
+
 
 [![image](https://img.shields.io/pypi/v/polaroam.svg)](https://pypi.python.org/pypi/polaroam)
 
