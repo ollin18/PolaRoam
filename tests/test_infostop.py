@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 
-"""Tests for `infostop` package."""
+"""Tests for `polaroam` package."""
 
 
 import unittest
 
-from infostop import infostop
+from polaroam import polaroam
 
 
-class TestInfostop(unittest.TestCase):
-    """Tests for `infostop` package."""
+class TestPolaroam(unittest.TestCase):
+    """Tests for `polaroam` package."""
 
     def setUp(self):
         """Set up test fixtures, if any."""

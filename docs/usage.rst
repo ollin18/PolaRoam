@@ -2,6 +2,6 @@
 Usage
 =====
 
-To use Infostop in a project::
+To use Polaroam in a project::
 
-    import infostop
+    import polaroam

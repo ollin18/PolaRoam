@@ -3,7 +3,7 @@ import os
 os.environ['POLARS_MAX_THREADS'] = '20'
 import pandas as pd
 import polars as pl
-import infostop
+import polaroam
 import models
 from models import Infostop
 import numpy as np

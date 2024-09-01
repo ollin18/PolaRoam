@@ -1,1 +1,1 @@
-"""Unit test package for infostop."""
+"""Unit test package for polaroam."""

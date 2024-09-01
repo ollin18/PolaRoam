@@ -13,7 +13,7 @@ Types of Contributions
 Report Bugs
 -----------
 
-Report bugs at <https://github.com/ollin18/infostop/issues>.
+Report bugs at <https://github.com/ollin18/polaroam/issues>.
 
 If you are reporting a bug, please include:
 
@@ -38,15 +38,15 @@ implement it.
 Write Documentation
 -------------------
 
-Infostop could always use more documentation, whether as part of the
-official Infostop docs, in docstrings, or even on the web in blog posts,
+Polaroam could always use more documentation, whether as part of the
+official Polaroam docs, in docstrings, or even on the web in blog posts,
 articles, and such.
 
 Submit Feedback
 ---------------
 
 The best way to send feedback is to file an issue at
-<https://github.com/ollin18/infostop/issues>.
+<https://github.com/ollin18/polaroam/issues>.
 
 If you are proposing a feature:
 
@@ -59,15 +59,15 @@ If you are proposing a feature:
 Get Started!
 ============
 
-Ready to contribute? Here\'s how to set up [infostop]{.title-ref} for
+Ready to contribute? Here\'s how to set up [polaroam]{.title-ref} for
 local development.
 
-1.  Fork the [infostop]{.title-ref} repo on GitHub.
+1.  Fork the [polaroam]{.title-ref} repo on GitHub.
 
 2.  Clone your fork locally:
 
     ``` {.shell}
-    $ git clone git@github.com:your_name_here/infostop.git
+    $ git clone git@github.com:your_name_here/polaroam.git
     ```
 
 3.  Install your local copy into a virtualenv. Assuming you have
@@ -75,8 +75,8 @@ local development.
     local development:
 
     ``` {.shell}
-    $ mkvirtualenv infostop
-    $ cd infostop/
+    $ mkvirtualenv polaroam
+    $ cd polaroam/
     $ python setup.py develop
     ```
 
@@ -122,7 +122,7 @@ Before you submit a pull request, check that it meets these guidelines:
     the feature to the list in README.rst.
 3.  The pull request should work for Python 3.5, 3.6, 3.7 and 3.8, and
     for PyPy. Check
-    <https://travis-ci.com/ollin18/infostop/pull_requests> and make sure
+    <https://travis-ci.com/ollin18/polaroam/pull_requests> and make sure
     that the tests pass for all supported Python versions.
 
 Tips
@@ -131,7 +131,7 @@ Tips
 To run a subset of tests:
 
 ``` {.shell}
-$ python -m unittest tests.test_infostop
+$ python -m unittest tests.test_polaroam
 ```
 
 Deploying

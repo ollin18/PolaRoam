@@ -3,7 +3,7 @@ import bisect
 import polars as pl
 from sklearn.neighbors import BallTree
 from scipy.spatial import ConvexHull, QhullError
-\
+
 from infomap import Infomap
 from sklearn.cluster import DBSCAN
 
@@ -403,3 +403,90 @@ def get_stationary_events(input_df, r_C, min_size, min_staying_time, max_staying
     )
 
     return out
+
+# def calculate_total_days(df):
+#     # Aggregate to get min and max of the "t_start" column
+#     aggregated = df.select([
+#         pl.col("t_start").min().alias("min_date"),
+#         pl.col("t_start").max().alias("max_date")
+#     ])
+
+#     # Collect the result to get the min and max dates
+#     result = aggregated.collect()
+
+#     # Extract min_date and max_date from the result
+#     min_date = result["min_date"][0]
+#     max_date = result["max_date"][0]
+
+#     # Calculate the total days including both start and end dates
+#     total_days = (max_date - min_date).days + 1
+
+#     return total_days
+
+def calculate_total_days(df):
+    # Aggregate to get min and max of the "t_start" column
+    aggregated = df.select([
+        pl.col("t_start").min().alias("min_date"),
+        pl.col("t_start").max().alias("max_date")
+    ])
+
+    # Calculate total days using lazy expressions
+    total_days = (aggregated
+                  .with_columns(total_days = (pl.col("max_date") - pl.col("min_date")))
+                  .with_columns(total_days = pl.col("total_days").dt.total_days()+1))
+    
+    total_days = total_days.with_columns(dummy_key = pl.lit(1).cast(pl.Int64))
+
+    # Return the expression instead of collecting it
+    return total_days
+
+def calculate_date_counts(df, total_days):
+    df = df.with_columns(dummy_key = pl.lit(1).cast(pl.Int64))
+
+    df = df.join(total_days, on="dummy_key", how="left").drop("dummy_key")
+
+
+    uid_date_counts = df.group_by("uid").agg(
+        pl.col("date").n_unique().alias("total_dates"),
+        pl.col("total_days").first().alias("time_span")
+    )
+
+    cluster_date_counts = df.group_by(["uid", "stop_locations"]).agg(
+        pl.col("date").n_unique().alias("cluster_dates")
+    )
+
+    combined_counts = cluster_date_counts.join(uid_date_counts, on="uid").with_columns([
+        (pl.col("cluster_dates") / pl.col("total_dates")).alias("date_percentage"),
+        (pl.col("cluster_dates") / pl.col("time_span")).alias("all_percentage")
+    ])
+
+    return combined_counts
+
+def filter_clusters(df, total_days, min_periods_over_window, span_period):
+    if total_days is None:
+        # total_days = calculate_total_days(df)
+        total_days = calculate_total_days(df)
+    else:
+        total_days = pl.LazyFrame({
+            "dummy_key": pl.Series([1]).cast(pl.Int64),  # Cast to Int64
+            "total_days": pl.Series([total_days]).cast(pl.Int64)  # Cast to Int64
+        })
+        # total_days = pl.LazyFrame({"dummy_key": [1], "total_days": [total_days]})
+
+    combined_counts = calculate_date_counts(df, total_days)
+    filtered_clusters =  combined_counts.filter(
+        (pl.col("date_percentage") >= min_periods_over_window) &
+        (pl.col("all_percentage") >= span_period)
+    ).select(["uid", "stop_locations", "date_percentage", "all_percentage"])
+
+    filtered_df = df.join(filtered_clusters, on=["uid", "stop_locations"], how="inner")
+    return filtered_df
+
+def label_locations(df, label_column, label_value, new_label_column_name):
+    label_df = df.sort(["date_percentage", "cluster_counts"], descending=True).unique(
+        subset=["uid", "stop_locations"], keep="first"
+    ).select("uid", "stop_locations").with_columns(
+        pl.lit(label_value).alias(new_label_column_name)
+    )
+
+    return label_df

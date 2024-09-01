@@ -8,13 +8,13 @@ Installation
 Stable release
 --------------
 
-To install Infostop, run this command in your terminal:
+To install Polaroam, run this command in your terminal:
 
 .. code-block:: console
 
-    $ pip install infostop
+    $ pip install polaroam
 
-This is the preferred method to install Infostop, as it will always install the most recent stable release.
+This is the preferred method to install Polaroam, as it will always install the most recent stable release.
 
 If you don't have `pip`_ installed, this `Python installation guide`_ can guide
 you through the process.
@@ -26,19 +26,19 @@ you through the process.
 From sources
 ------------
 
-The sources for Infostop can be downloaded from the `Github repo`_.
+The sources for Polaroam can be downloaded from the `Github repo`_.
 
 You can either clone the public repository:
 
 .. code-block:: console
 
-    $ git clone git://github.com/ollin18/infostop
+    $ git clone git://github.com/ollin18/polaroam
 
 Or download the `tarball`_:
 
 .. code-block:: console
 
-    $ curl -OJL https://github.com/ollin18/infostop/tarball/master
+    $ curl -OJL https://github.com/ollin18/polaroam/tarball/master
 
 Once you have a copy of the source, you can install it with:
 
@@ -47,5 +47,5 @@ Once you have a copy of the source, you can install it with:
     $ python setup.py install
 
 
-.. _Github repo: https://github.com/ollin18/infostop
-.. _tarball: https://github.com/ollin18/infostop/tarball/master
+.. _Github repo: https://github.com/ollin18/polaroam
+.. _tarball: https://github.com/ollin18/polaroam/tarball/master

@@ -3,9 +3,9 @@ import os
 # os.environ['POLARS_MAX_THREADS'] = '20'
 import pandas as pd
 import polars as pl
-import infostop
+import polaroam
 import models
-from models import Infostop
+from models import Stopdetect
 import numpy as np
 import utils
 import time
@@ -15,7 +15,7 @@ import time
 # %%
 import importlib
 importlib.reload(models)
-importlib.reload(infostop)
+importlib.reload(polaroam)
 importlib.reload(utils)
 
 
@@ -34,7 +34,7 @@ df = df.sort("timestamp")
 # df = df.lazy()
 
 # %%
-model = models.Infostop(
+model = models.Stopdetect(
     r1=5,  # Max distance to consider points as stationary
     r2=10,  # Max distance to consider stationary points as connected
     min_staying_time=900,  # Minimum time to consider a location as a stop (same unit as time in data)
@@ -49,17 +49,18 @@ model = models.Infostop(
 # Use fit_predict to process the data and get stop location labels
 #  labels = model.fit_predict(example_data)
 # %%
-#  labels = model.fit_predict(df)
+labels = model.fit_predict(df)
 
 # %%
-#  medians = model.compute_label_medians()
+medians = model.compute_label_medians()
 
 # %%
 # stop_locations = model.compute_infomap()
-#  stop_locations = model.compute_dbscan()
+stop_locations = model.compute_dbscan()
 
 # %%
-#  stop_locations = stop_locations.collect()
+stop_locations = stop_locations.collect()
+
 
 # %%
 start = time.time()
@@ -73,6 +74,95 @@ print(end - start)
 stop_locations.schema
 #  org = pd.read_parquet("../../data/veraset_movement_416.snappy.parquet")
 mx = org.loc[org.country == "MX"]
+
+# %%
+# Instantiate the new HWEstimate model with the same parameters
+hw_model = models.HWEstimate(
+    r1=model._r1,
+    r2=model._r2,
+    min_staying_time=model._min_staying_time,
+    max_time_between=model._max_time_between,
+    min_size=model._min_size,
+    distance_metric=model._distance_metric,
+    verbose=model._verbose,
+    num_threads=model._num_threads,
+    min_spacial_resolution=model._min_spacial_resolution,
+    tz="America/Mexico_City"  # Or another timezone if different from default
+)
+
+# Now you can use hw_model to perform the same tasks
+labels = hw_model.fit_predict(df)
+medians = hw_model.compute_label_medians()
+stop_locations = hw_model.compute_dbscan()
+
+# stop_locations = hw_model.prepare_labeling()
+
+# %%
+# hw_model._calculate_date_counts(stop_locations, 730)
+# %%
+hw = hw_model.detect_home(
+    start_hour_day=7,
+    end_hour_day=21,
+    min_periods_over_window=0.5,
+    span_period=0.5,
+    total_days=730
+)
+
+hw.collect()
+
+# %%
+df = hw_model._hw_df
+
+total_days = 730 #self._calculate_total_days(df)# self._total_days
+
+# Filter for potential home time periods (nighttime or weekends)
+home_tmp = df.filter(
+    (pl.col("hour") >= 21) |
+    (pl.col("hour") <= 7) |
+    (pl.col("weekday").is_between(6, 7, closed="both"))
+)
+
+# %%
+start_hour_day=0,
+end_hour_day=6,
+min_periods_over_window=0.5,
+span_period=0.5,
+total_days=730
+
+combined_counts = hw_model._calculate_date_counts(home_tmp, total_days)
+# combined_counts.collect()
+
+
+filtered_clusters = hw_model._filter_clusters(combined_counts, min_periods_over_window, span_period)
+filtered_clusters.collect()
+
+# home_label = hw_model._label_locations(filtered_clusters, "home_label", 0, "home_label")
+# home_label.collect()
+
+
+
+
+
+# %%
+hw = hw_model.detect_work(
+    start_hour_day=8,
+    end_hour_day=18,
+    min_periods_over_window=0.5,
+    span_period=0.5,
+    total_days=730
+)
+
+
+# %%
+hw = hw.collect()
+
+# %%
+
+
+
+
+
+
 
 #  import geopandas as gpd
 #  mapa = gpd.read_file("~/Dropbox/enlace_hacia_documentos/Berkeley/informalidad/data/inegi/mgccpv/shp/m/conjunto_de_datos/09m.shp")
@@ -155,7 +245,7 @@ df = (df.with_columns(
 
 
 # %%
-model = models.Infostop(
+model = models.Polaroam(
     r1=10,  # Max distance to consider points as stationary
     r2=10,  # Max distance to consider stationary points as connected
     min_staying_time=300,  # Minimum time to consider a location as a stop (same unit as time in data)
@@ -184,7 +274,7 @@ print(end - start)
 
 
 # %%
-model2 = models.Infostop(
+model2 = models.Polaroam(
     r1=3,  # Max distance to consider points as stationary
     r2=3,  # Max distance to consider stationary points as connected
     min_staying_time=300,  # Minimum time to consider a location as a stop (same unit as time in data)
