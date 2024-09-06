@@ -434,7 +434,7 @@ def calculate_total_days(df):
     total_days = (aggregated
                   .with_columns(total_days = (pl.col("max_date") - pl.col("min_date")))
                   .with_columns(total_days = pl.col("total_days").dt.total_days()+1))
-    
+
     total_days = total_days.with_columns(dummy_key = pl.lit(1).cast(pl.Int64))
 
     # Return the expression instead of collecting it

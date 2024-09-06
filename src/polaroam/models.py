@@ -186,9 +186,10 @@ class Stopdetect(BaseStopModel):
         column_names = data.collect_schema().names()
         if 'uid' in column_names:
             # Select the unique count of 'uid'
-            unique_uid_count = data.select(pl.col("uid").n_unique().alias("unique_uid_count")).collect()
+            #  unique_uid_count = data.select(pl.col("uid").n_unique().alias("unique_uid_count")).collect()
             # Extract the value and perform the comparison
-            self.multiuser = unique_uid_count["unique_uid_count"][0] > 1
+            #  self.multiuser = unique_uid_count["unique_uid_count"][0] > 1
+            self.multiuser = True
         else:
             self.multiuser = False
 
@@ -359,12 +360,15 @@ class HWEstimate(Stopdetect):
                  min_periods_over_window=0.5,
                  span_period=0.5,
                  total_days=30,
+                 convert_tz=False,
                  tz="UTC", **kwargs):
         """
         Initialize HWEstimate with an optional timezone parameter and any other parameters for Stopdetect.
 
         Parameters:
-        - tz: Timezone for datetime operations, default is "America/Mexico_City".
+        - conver_tz: Logic variable to convert the time-zone if original data is not
+          localized.
+        - tz: Timezone for datetime operations, default is "UTC".
         - kwargs: Other parameters to initialize the Stopdetect class.
         """
         super().__init__(**kwargs)
@@ -373,6 +377,7 @@ class HWEstimate(Stopdetect):
         self._min_periods_over_window=min_periods_over_window
         self._span_period=span_period
         self._total_days=total_days
+        self._convert_tz = convert_tz  # Store the timezone parameter
         self._tz = tz  # Store the timezone parameter
 
     def prepare_labeling(self, df):
@@ -389,10 +394,12 @@ class HWEstimate(Stopdetect):
         df = df.with_columns([
             pl.from_epoch("start_timestamp", time_unit="s").alias("t_start"),
             pl.from_epoch("end_timestamp", time_unit="s").alias("t_end"),
-        ]).with_columns([
-            pl.col("t_start").dt.convert_time_zone(self._tz).alias("t_start"),
-            pl.col("t_end").dt.convert_time_zone(self._tz).alias("t_end"),
         ])
+        if self._convert_tz:
+            df = df.with_columns([
+                pl.col("t_start").dt.convert_time_zone(self._tz).alias("t_start"),
+                pl.col("t_end").dt.convert_time_zone(self._tz).alias("t_end"),
+            ])
 
         # Extract date and time components
         df = df.with_columns([
