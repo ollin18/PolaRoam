@@ -349,6 +349,7 @@ def calculate_distances(coords, distance_metric):
 
 def get_stationary_events(input_df, r_C, min_size, min_staying_time, max_staying_time, distance_metric):
     coords = input_df.select(['uid', 'latitude', 'longitude', 'timestamp'])
+    coords = coords.sort(["uid","timestamp"])
 
     coords = calculate_distances(coords, distance_metric)
 
@@ -367,8 +368,15 @@ def get_stationary_events(input_df, r_C, min_size, min_staying_time, max_staying
     ])
 
     # Create event IDs by cumulatively summing up the transitions
+    #  coords = coords.with_columns([
+    #      (pl.col('event_change').cum_sum().alias('event_id'))
+    #  ])
+
     coords = coords.with_columns([
-        (pl.col('event_change').cum_sum().alias('event_id'))
+        pl.when(pl.col('stationary'))
+        .then(pl.col('event_change').cum_sum())
+        .otherwise(-1)
+        .alias('event_id')
     ])
 
     # Filter events based on min_size and min_staying_time
@@ -483,7 +491,8 @@ def filter_clusters(df, total_days, min_periods_over_window, span_period):
     return filtered_df
 
 def label_locations(df, label_column, label_value, new_label_column_name):
-    label_df = df.sort(["date_percentage", "cluster_counts"], descending=True).unique(
+    #  label_df = df.sort(["date_percentage", "cluster_counts"], descending=True).unique(
+    label_df = df.sort(["cluster_counts", "date_percentage"], descending=True).unique(
         subset=["uid", "stop_locations"], keep="first"
     ).select("uid", "stop_locations").with_columns(
         pl.lit(label_value).alias(new_label_column_name)
