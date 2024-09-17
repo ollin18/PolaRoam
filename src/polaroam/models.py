@@ -86,62 +86,6 @@ class BaseStopModel:
 
         return unique_coords_df
 
-    # def _calculate_total_days(self, df):
-    #     # Aggregate to get min and max of the "t_start" column
-    #     aggregated = df.select([
-    #         pl.col("t_start").min().alias("min_date"),
-    #         pl.col("t_start").max().alias("max_date")
-    #     ])
-
-    #     # Collect the result to get the min and max dates
-    #     result = aggregated.collect()
-
-    #     # Extract min_date and max_date from the result
-    #     min_date = result["min_date"][0]
-    #     max_date = result["max_date"][0]
-
-    #     # Calculate the total days including both start and end dates
-    #     total_days = (max_date - min_date).days + 1
-
-    #     return total_days
-
-    # def _calculate_date_counts(self, df, total_days):
-    #     uid_date_counts = df.group_by("uid").agg(
-    #         pl.col("date").n_unique().alias("total_dates"),
-    #         pl.lit(total_days).alias("time_span")
-    #     )
-
-    #     cluster_date_counts = df.group_by(["uid", "stop_locations"]).agg(
-    #         pl.col("date").n_unique().alias("cluster_dates")
-    #     )
-
-    #     combined_counts = cluster_date_counts.join(uid_date_counts, on="uid").with_columns([
-    #         (pl.col("cluster_dates") / pl.col("total_dates")).alias("date_percentage"),
-    #         (pl.col("cluster_dates") / pl.col("time_span")).alias("all_percentage")
-    #     ])
-
-    #     return combined_counts
-
-    # def _filter_clusters(self, df, total_days, min_periods_over_window, span_period):
-    #     total_days = _calculate_total_days(self, df)
-    #     combined_counts = _calculate_date_counts(self, df, total_days)
-    #     filtered_clusters =  combined_counts.filter(
-    #         (pl.col("date_percentage") >= min_periods_over_window) &
-    #         (pl.col("all_percentage") >= span_period)
-    #     ).select(["uid", "stop_locations", "date_percentage", "all_percentage"])
-
-    #     filtered_df = df.join(filtered_clusters, on=["uid", "stop_locations"], how="inner")
-    #     return filtered_df
-
-    # def _label_locations(self, df, label_column, label_value, new_label_column_name):
-    #     label_df = df.sort(["date_percentage", "cluster_counts"], descending=True).unique(
-    #         subset=["uid", "stop_locations"], keep="first"
-    #     ).select("uid", "stop_locations").with_columns(
-    #         pl.lit(label_value).alias(new_label_column_name)
-    #     )
-
-    #     return label_df
-
 
 class Stopdetect(BaseStopModel):
     """Infostop model class, extending BaseStopModel."""
@@ -165,22 +109,7 @@ class Stopdetect(BaseStopModel):
         self._weight_exponent = weight_exponent
         self._num_threads = num_threads
 
-    # def __init__(self, r1=10, r2=10, label_singleton=False, min_staying_time=300, max_time_between=86400, min_size=2, min_spacial_resolution=0, distance_metric="haversine", weighted=False, weight_exponent=1, verbose=False, coords_column='event_maps', num_threads=1):
-    #     super().__init__(distance_metric, verbose)
-    #     self._r1 = r1
-    #     self._r2 = r2
-    #     self._label_singleton = label_singleton
-    #     self._min_staying_time = min_staying_time
-    #     self._max_time_between = max_time_between
-    #     self._min_size = min_size
-    #     self._min_spacial_resolution = min_spacial_resolution
-    #     self._coords_column = coords_column
-    #     self._weighted = weighted
-    #     self._weight_exponent = weight_exponent
-    #     self._num_threads = num_threads
-
     def fit_predict(self, data):
-        # progress = tqdm if self._verbose else utils.pass_func
 
         # Check if 'uid' is in the column names
         column_names = data.collect_schema().names()
@@ -330,20 +259,6 @@ class Stopdetect(BaseStopModel):
                                 .otherwise(pl.col("cluster_counts"))
                             )
                        )
-        # stop_medoid = (
-        #                 stop_labels
-        #                 .group_by(["uid", "stop_locations"], maintain_order=True)
-        #                 .agg([
-        #                     pl.col("uid").first().alias("uid"),
-        #                     pl.col("stop_locations").first().alias("stop_locations"),
-        #                     pl.when(pl.col("stop_locations").first() == -1)
-        #                     .then(pl.lit(1))
-        #                     .otherwise(pl.col("stop_locations").count())
-        #                     .alias("cluster_counts"),
-        #                     pl.col("latitude").median().alias("cluster_latitude"),
-        #                     pl.col("longitude").median().alias("cluster_longitude")
-        #                 ])
-        #             )
 
         self._stop_labels = stop_labels.join(stop_medoid, on=["uid", "stop_locations"], how="left")
 
@@ -355,10 +270,14 @@ class Stopdetect(BaseStopModel):
 
 class HWEstimate(Stopdetect):
     def __init__(self,
-                 start_hour_day=7,
+                 start_hour_day=6,
                  end_hour_day=21,
-                 min_periods_over_window=0.5,
-                 span_period=0.5,
+                 start_working_hour=8,
+                 end_working_hour=6,
+                 min_periods_over_window_home=0.5,
+                 span_period_home=0.5,
+                 min_periods_over_window_work=0.5,
+                 span_period_work=0.5,
                  total_days=30,
                  convert_tz=False,
                  tz="UTC", **kwargs):
@@ -374,10 +293,14 @@ class HWEstimate(Stopdetect):
         super().__init__(**kwargs)
         self._start_hour_day=start_hour_day
         self._end_hour_day=end_hour_day
-        self._min_periods_over_window=min_periods_over_window
-        self._span_period=span_period
+        self._start_working_hour=start_working_hour
+        self._end_working_hour=end_working_hour
+        self._min_periods_over_window_home=min_periods_over_window_home
+        self._span_period_home=span_period_home
+        self._min_periods_over_window_work=min_periods_over_window_work
+        self._span_period_work=span_period_work
         self._total_days=total_days
-        self._convert_tz = convert_tz  # Store the timezone parameter
+        self._convert_tz=convert_tz  # Store the timezone parameter
         self._tz = tz  # Store the timezone parameter
 
     def prepare_labeling(self, df):
@@ -447,17 +370,20 @@ class HWEstimate(Stopdetect):
 
         # Filter for potential home time periods (nighttime or weekends)
         home_tmp = self._hw_df.filter(
-            (pl.col("hour") >= self._end_hour_day) |
+            ((pl.col("hour") >= self._end_hour_day) |
             (pl.col("hour") <= self._start_hour_day) |
-            (pl.col("weekday").is_between(6, 7, closed="both")) &
+            (pl.col("weekday").is_between(6, 7, closed="both"))) &
             (pl.col("stop_locations") != -1)
         )
 
         # combined_counts = self._calculate_date_counts(home_tmp, total_days)
 
-        filtered_clusters = utils.filter_clusters(home_tmp, self._total_days, self._min_periods_over_window, self._span_period)
+        filtered_clusters = utils.filter_clusters(home_tmp, self._total_days,
+                                                  self._min_periods_over_window_home,
+                                                  self._span_period_home)
 
-        home_label = utils.label_locations(filtered_clusters, "home_label", 0, "home_label")
+        home_label = utils.label_locations(filtered_clusters, "home_label",
+                                           self._min_periods_over_window_home, "home_label")
 
         updated = self._hw_df.join(home_label, on=["uid", "stop_locations"], how="left", suffix="_new").with_columns([
             pl.when(pl.col("home_label_new").is_not_null())
@@ -499,15 +425,18 @@ class HWEstimate(Stopdetect):
 
         # Filter for potential work time periods (work hours on weekdays, excluding home locations)
         work_tmp = self._hw_df.filter(
-            ((pl.col("hour") >= self._start_hour_day) & (pl.col("hour") <= self._end_hour_day)) &
-            (pl.col("weekday").is_between(1, 5, closed="both")) &
+            (((pl.col("hour") >= self._start_working_hour) & (pl.col("hour") <= self._end_working_hour)) &
+            (pl.col("weekday").is_between(1, 5, closed="both"))) &
             (pl.col("location_type") != "H") &
             (pl.col("stop_locations") != -1)
         )
 
-        filtered_clusters = utils.filter_clusters(work_tmp, self._total_days, self._min_periods_over_window, self._span_period)
+        filtered_clusters = utils.filter_clusters(work_tmp, self._total_days,
+                                                  self._min_periods_over_window_work,
+                                                  self._span_period_work)
 
-        work_label = utils.label_locations(filtered_clusters, "work_label", 0, "work_label")
+        work_label = utils.label_locations(filtered_clusters, "work_label",
+                                           self._min_periods_over_window_work, "work_label")
 
         updated = self._hw_df.join(work_label, on=["uid", "stop_locations"], how="left", suffix="_new").with_columns([
             pl.when(pl.col("work_label_new").is_not_null())
