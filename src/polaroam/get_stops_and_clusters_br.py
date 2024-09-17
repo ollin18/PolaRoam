@@ -19,19 +19,25 @@ importlib.reload(models)
 importlib.reload(polaroam)
 importlib.reload(utils)
 
-data_dir = os.path.join("/","data","Berkeley","MX","data_quadrant")
+data_dir = os.path.join("/","data","Berkeley","BR","data_rio")
 #  df = pl.scan_parquet(os.path.join(data_dir,"new_filtered_localized","**","*.parquet"))
 
-files = glob.glob(os.path.join(data_dir, "filtered_localized","date_trunc*"), recursive=True)
+files = glob.glob(os.path.join(data_dir, "filter_partioned","day*"), recursive=True)
 
 unique_dates = sorted(set([os.path.basename(f).split('=')[-1] for f in files]))
-#  date_str='2022-12-08'
+date_str='2023-11-19'
 
 for date_str in unique_dates:
     print(f"Processing date: {date_str}")
 
     # Load all parquet files for the specific date
-    df = pl.scan_parquet(os.path.join(data_dir,"filtered_localized", f"date_trunc={date_str}/*.parquet"))
+    df = pl.scan_parquet(os.path.join(data_dir,"filter_partioned", f"day={date_str}/*.parquet"))
+    df = df.with_columns(pl.col("id").alias("uid"),
+                    pl.col("lat").alias("latitude"),
+                    pl.col("lon").alias("longitude"),
+                    pl.col("ts").alias("timestamp")
+                    )
+    df.collect_schema()
     #  df = df.filter(pl.col("error") <= 20)
 
     # Select only necessary columns
@@ -62,7 +68,7 @@ for date_str in unique_dates:
     pl.Config.set_streaming_chunk_size(10000)
 
     #  ds.write(medians.collect(streaming=True))
-    base_path = os.path.join(data_dir,f"error_stops_r1{model._r1}_ms{model._min_staying_time}_mt{model._max_time_between}","all_users_stops")
+    base_path = os.path.join(data_dir,f"stops_r1{model._r1}_ms{model._min_staying_time}_mt{model._max_time_between}","all_users_stops")
     os.makedirs(base_path, exist_ok=True)
     output_file = os.path.join(base_path, f"{date_str}.parquet")
     medians.collect(streaming=True).write_parquet(output_file, use_pyarrow=True)
@@ -85,7 +91,7 @@ model = models.Stopdetect(
     distance_metric="haversine",  # Distance metric, 'haversine' for geo-coordinates
     verbose=False,  # Set to True for more detailed output during processing
     num_threads = 30,
-    min_spacial_resolution=0
+    min_spacial_resolution=0.01
 )
 
 start = time.time()
@@ -125,11 +131,11 @@ hw_model = models.HWEstimate(
     span_period_work=0.05,
     total_days=31,
     convert_tz=False,
-    tz="America/Mexico_City"  # Or another timezone if different from default
+    tz="America/Sao_Paulo"  # Or another timezone if different from default
 )
 
-data_dir = os.path.join("/","data","Berkeley","MX","data_quadrant")
-base_path = os.path.join(data_dir,f"error_stops_r1{hw_model._r1}_ms{hw_model._min_staying_time}_mt{hw_model._max_time_between}")
+data_dir = os.path.join("/","data","Berkeley","BR","data_rio")
+base_path = os.path.join(data_dir,f"stops_r1{hw_model._r1}_ms{hw_model._min_staying_time}_mt{hw_model._max_time_between}")
 input_file = os.path.join(base_path,"whole_period_clusters.parquet")
 stop_locations = pl.scan_parquet(input_file)
 
